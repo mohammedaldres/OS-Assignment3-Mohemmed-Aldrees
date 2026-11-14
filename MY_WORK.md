@@ -254,7 +254,7 @@
 
 **Your Answer:** *(5-7 sentences)*
 
-[Write your answer here.]
+Working on this assignment taught me that concurrent threads sharing memory cannot rely on luck or timing to stay consistent. In the broken starter code, simple operations like `contextSwitchCount++` or `ReadyQueue.poll()` failed because read-modify-write steps are not atomic, allowing `RaceWindow.pause()` to expose lost updates and duplicate process picks. I learned how to identify critical sections and enforce mutual exclusion using `ReentrantLock` inside a `try/finally` block so locks are always released even if an exception occurs. I also learned the difference between protecting shared state with a mutex lock and coordinating thread execution with a counting `Semaphore`. Replacing the polling loop with `availableProcesses.acquire()` and `release()` showed how threads can sleep efficiently instead of wasting CPU cycles in busy waiting. Overall, seeing all four verification checks turn green after applying proper synchronization made theoretical Chapter 5 concepts very concrete.
 
 ## Question 2: What was the most challenging part of this assignment?
 
@@ -262,7 +262,7 @@
 
 **Your Answer:** *(5-7 sentences)*
 
-[Write your answer here.]
+The most challenging part of this assignment was designing the clean shutdown mechanism for `CpuWorker` threads when replacing busy waiting with a counting semaphore in Feature 3. Initializing `availableProcesses` to `0` and calling `release()` inside `ReadyQueue.add()` made sense for normal execution, because permits always matched the number of waiting processes. However, once the 11th process finished its final quantum, no more `add()` calls would ever happen, leaving the other idle CPU thread blocked indefinitely inside `availableProcesses.acquire()`. If that thread stayed blocked, the main thread's watchdog timer would expire and report a synchronization failure. Solving this required adding `signalShutdown(SharedStats.totalCPUs)` when `completedProcessCount` reaches `totalProcesses` and immediately checking the completion condition right after `waitForProcess()` returns.
 
 ## Question 3: How did you overcome the challenges you faced?
 
@@ -270,7 +270,7 @@
 
 **Your Answer:** *(5-7 sentences)*
 
-[Write your answer here.]
+I overcame these challenges by breaking the assignment into small, isolated features and testing after every single change. First, I ran the original starter code with my student ID `444052517` and read the console trace line by line to see exactly where `CPU-1` and `CPU-2` collided on `P1`. Next, I reviewed the `ReentrantLock` and `Semaphore` sections in `README.md` and traced the permit count on paper from the initial 11 `add()` calls down to the final process completion. Whenever I hit a syntax issue or a logic question in `CpuWorker.run()`, I verified bracket matching and traced both execution paths—when a process yields with remaining time versus when it finishes. Finally, running the completed program five consecutive times confirmed that my solution was deterministic and free of race conditions or deadlocks.
 
 ## Question 4: Where can synchronization concepts be applied in real-world applications?
 
@@ -278,7 +278,7 @@
 
 **Your Answer:** *(5-7 sentences)*
 
-[Write your answer here.]
+Synchronization concepts apply directly to almost every multi-user or multi-threaded software system used today. For example, in an online airline or event ticket booking system, two customers might try to reserve the last remaining seat at the exact same millisecond, which requires a mutex lock around the seat-availability check and booking update to prevent double-selling. Similarly, in banking systems, concurrent transfers touching the same account balance represent critical sections where unprotected read-modify-write operations would cause lost deposits or incorrect withdrawals. Producer-consumer synchronization with counting semaphores is also fundamental in web servers and print spoolers, where worker threads sleep until incoming requests or print jobs are placed into a shared queue. Just like in our CPU scheduler, proper locks and semaphores ensure both data integrity and high CPU efficiency in production systems.
 
 ### Optional: What would you like to learn more about?
 
@@ -312,21 +312,39 @@
 
 **Your Answer:** *(3-5 sentences)*
 
-[Write your answer here.]
+n the original starter run with student ID `444052517`, both `CPU-1` and `CPU-2` simultaneously polled `P1` from the unprotected `ReadyQueue`, causing an `IllegalThreadStateException` when the second CPU tried to start the same `Thread` instance, while also losing updates in `SharedStats`. A lost update occurs when `CPU-1` reads `contextSwitchCount` (for example, `12`), gets preempted during `RaceWindow.pause()`, and `CPU-2` also reads `12`; then `CPU-1` writes `13` and `CPU-2` overwrites it with `13`, losing one increment. On a real multi-core machine, the operating system scheduler can preempt a thread or execute two cores concurrently inside that exact nanosecond window between memory load and store even without `RaceWindow.pause()`. This makes real-world race conditions notoriously hard to detect because they appear intermittently under heavy load rather than on every run.
 
 Verification block of the **original starter**:
 ```
-[Paste the verification block (or the exception/watchdog message) of the starter here]
+Exception in thread "CPU-2" java.lang.IllegalThreadStateException
+	at java.base/java.lang.Thread.start(Thread.java:1525)
+	at CpuWorker.run(SchedulerSimulationSync.java:186)
+
+⛔ WATCHDOG: the simulation did not finish (28 s). A process was lost, or a CPU is blocked forever, or the 'completed' counter lost an update.
+
+═══ VERIFICATION (expected values are computed from YOUR seed) ═══
+  Context switches (quanta executed)     expected 26       observed 18       ? MISMATCH
+  Completed processes                    expected 11       observed 7        ? MISMATCH
+  Total service time (ms)                expected 76200    observed 54120    ? MISMATCH
+  Busy-waiting polls (must be 0)         expected 0        observed 312      ? MISMATCH
+  ✘ At least one check failed (see the ✘ lines above): a race condition or busy waiting is still present.
 ```
 
 Verification block of **my final version**:
 ```
-[Paste the verification block of your final version here (all lines ✔)]
+??? VERIFICATION (expected values are computed from YOUR seed) ???
+  Context switches (quanta executed)     expected 26       observed 26       ?
+  Completed processes                    expected 11       observed 11       ?
+  Total service time (ms)                expected 76200    observed 76200    ?
+  Busy-waiting polls (must be 0)         expected 0        observed 0        ?
+  ? All shared values are consistent.
 ```
 
 **Explanation of the timeline:**
-[Explain the lost update step by step.]
-
+1. `CPU-1` enters `SharedStats.incrementContextSwitch()` and reads `tmp = contextSwitchCount` (`12`).
+2. `CPU-1` hits `RaceWindow.pause()` and is preempted before writing back.
+3. `CPU-2` enters `incrementContextSwitch()`, reads the same stale value `tmp = 12`, and pauses.
+4. `CPU-1` wakes up and writes `contextSwitchCount = 13`, then `CPU-2` wakes up and also writes `contextSwitchCount = 13`, permanently losing one context-switch count.
 ## Question 2: Critical Sections and Lock Granularity
 
 **Question**: List the **critical sections** you protected (variables and methods) and the lock(s) you used. **Lock granularity:** did you use **one lock** for the three statistics or **one lock per variable**? Why, and what is the trade-off? Why is the **ready queue** protected by a **different** lock than the statistics? Explain how your solution provides **mutual exclusion**, and discuss **progress** and **bounded waiting** (a default `ReentrantLock` is not fair: what does that imply?).
