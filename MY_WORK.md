@@ -228,13 +228,13 @@
 
 > 💡 **TIP:** Fill this in **last**, after all entries are written.
 
-**Total time spent on assignment**: [X hours]
+**Total time spent on assignment**: 4 hours 20 minutes
 
-**Most challenging part**:
+**Most challenging part**: Coordinating clean thread termination with the counting semaphore in Feature 3 so that idle CPU workers wake up and exit once the last process finishes without triggering the watchdog.
 
-**Most interesting learning**:
+**Most interesting learning**: Seeing firsthand how a tiny 1ms preemption window (`RaceWindow.pause()`) between reading and writing a shared variable corrupts counters and causes threads to collide on the same queue element.
 
-**What I would do differently next time**:
+**What I would do differently next time**: Write down the exact expected values and save the broken starter output in a dedicated text file immediately during the first run before modifying any code.
 
 ---
 
