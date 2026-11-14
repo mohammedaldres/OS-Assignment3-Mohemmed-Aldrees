@@ -133,15 +133,19 @@
 ## Your Development Log
 
 ### Entry 1 - [Date and Time]
-**What I did**:
+**What I did**: Forked the starter repository, set my student ID, and ran the broken starter code
 
 **Details**:
+- Forked the repository under my GitHub account `mohammedaldres` and made sure its visibility is public
+- Updated `studentID` in `SchedulerSimulationSync.java` to my actual ID (`444052517`), which generated 11 processes, a 4000ms time quantum, and 2 CPUs
+- Executed the starter code and observed both `CPU-1` and `CPU-2` picking `P1` at the same time, causing an `IllegalThreadStateException` and lost updates on the shared counters
+- Saved the starter failure output for Part C Question 1 and pushed my commit
 
-**Challenges**:
+**Challenges**: Understanding why `CPU-1` and `CPU-2` picked the exact same process `P1` at the beginning of the simulation
 
-**Solution**:
+**Solution**: Inspected `ReadyQueue.poll()` and saw `RaceWindow.pause()` sitting between `list.getFirst()` and `list.removeFirst()`, allowing both threads to read the same head element before removal
 
-**Time spent**:
+**Time spent**: 50 minutes
 
 ---
 
