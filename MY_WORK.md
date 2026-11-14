@@ -353,8 +353,16 @@ Verification block of **my final version**:
 
 **Your Answer:** *(3-5 sentences)*
 
-[Write your answer here.]
+I protected `ReadyQueue` (`list` and `map` inside `add()`, `poll()`, `processOf()`, and `snapshot()`) with `queueLock`, and protected `SharedStats` (`contextSwitchCount`, `completedProcessCount`, and `totalServiceTime` inside all three increment/add methods and all three getter methods) with a separate `statsLock`. I chose **one coarse-grained lock** (`statsLock`) for all three statistics rather than three separate locks because each critical section is tiny, avoiding extra memory and lock-management overhead at the minor trade-off that two CPUs cannot update `contextSwitchCount` and `totalServiceTime` simultaneously. Using a separate lock for `ReadyQueue` than for `SharedStats` prevents lock contention and eliminates any risk of deadlock between queue operations and statistics updates. `ReentrantLock` guarantees mutual exclusion because only one thread can hold the lock at a time, and progress is ensured because every lock is released in a `finally` block; however, since the default `ReentrantLock` is non-fair, strict bounded waiting is not guaranteed under heavy contention, though with only 2 CPUs starvation does not occur in practice.
 
+| Critical section (variable / method) | Lock used | Why it needs protection |
+|---|---|---|
+| `ReadyQueue.add()` (`list`, `map`) | `queueLock` | Prevents concurrent structural modification of `list` and `map` while enqueuing a process. |
+| `ReadyQueue.poll()` (`list`) | `queueLock` | Prevents two CPUs from reading and removing the same head `Thread` across `RaceWindow.pause()`. |
+| `ReadyQueue.processOf()` & `snapshot()` (`list`, `map`) | `queueLock` | Prevents reading inconsistent state or `ConcurrentModificationException` during iteration. |
+| `SharedStats.incrementContextSwitch()` & `getContextSwitchCount()` | `statsLock` | Protects the non-atomic read-pause-write update and ensures readers see consistent values. |
+| `SharedStats.incrementCompletedProcess()` & `getCompletedProcessCount()` | `statsLock` | Prevents lost completion counts that would stop CPUs from knowing all 11 processes finished. |
+| `SharedStats.addServiceTime()` & `getTotalServiceTime()` | `statsLock` | Prevents lost CPU service time additions when multiple CPUs finish quanta concurrently. |
 | Critical section (variable / method) | Lock used | Why it needs protection |
 |---|---|---|
 | [e.g., `ReadyQueue.poll()`] | [lock name] | [reason] |
@@ -368,11 +376,11 @@ Verification block of **my final version**:
 
 **Your Answer:** *(3-5 sentences)*
 
-[Write your answer here.]
-
+In the starter code, when `readyQueue.poll()` returned `null`, a `CpuWorker` incremented `busyWaitPolls` (`312` polls in the broken run), slept for 20ms, and repeatedly polled the empty queue in a loop, wasting CPU cycles and requiring the loop condition to detect termination. In my final version, the counting semaphore `availableProcesses` represents the exact number of ready processes currently waiting in `ReadyQueue`, initialized to `0` because the queue starts empty before `main` adds the 11 processes. Right after the `11` initial `readyQueue.add()` calls in `main`, the semaphore's value is `11`, allowing the `2` CPUs to immediately acquire permits and sleep (blocked state) whenever the queue becomes empty later. When the last process completes (`completedProcessCount >= totalProcesses`), that CPU calls `availableProcesses.release(totalCPUs)` so any CPU thread blocked in `acquire()` wakes up, sees all processes are done, and exits cleanly instead of hanging forever.
 ## Question 4: Classical Problems and Deadlock
 
-**Question**: The CPUs and the ready queue look like a classical synchronization problem of Chapter 5. **Name it**, and say who plays the **producer** and the **consumer** roles (careful: here the CPUs also re-enqueue processes). If the ready queue were **bounded** (capacity `K`), name the **three semaphores** you would need and their **initial values**. Describe a **deadlock scenario** that appears if a thread acquired the **mutex before** waiting on the semaphore (or if two locks were acquired in different orders), and say **which of the four necessary conditions** you would break to prevent it.
+**Question**: The CPUs and the ready queue look like a classical synchronization problem of Chapter 5. **Name it**, and say who plays the **producer** and the **consumer** roles (careful: here the CPUs also re-enqueue processes). If the ready queue were **bounded** (capacity `K`), name the **three semaphores** you would need and their **initial values**. Describe a **deadlock scenario** that appears if a thread acquired the **mutex before** waiting on the semaphore (or if two locks were acquired in diffe
+rent orders), and say **which of the four necessary conditions** you would break to prevent it.
 
 > 💡 **TIP:** Recall the bounded-buffer solution of the slides (`empty`, `full`, `mutex`) and the order of `wait()` calls in the producer and the consumer. For the deadlock, think about a producer that holds the mutex while waiting for a free slot that only a consumer (who needs the mutex) can create.
 
