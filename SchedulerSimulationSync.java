@@ -63,18 +63,25 @@ class SharedStats {
     // TODO Feature 2: declare the lock(s) protecting the three shared variables above here.
     // Think about it: ONE lock for the three variables, or ONE lock PER variable? (you must justify it in MY_WORK.md)
 
-    public static void incrementContextSwitch() {
-        // TODO Feature 2: protect this critical section
-        int tmp = contextSwitchCount;       // 1) read
-        RaceWindow.pause();                 //    <- another thread can read the SAME value here
-        contextSwitchCount = tmp + 1;       // 2) write  (one increment is lost if someone else did the same)
-    }
+   class SharedStats {
+    static int totalProcesses = 0;
+    static int totalCPUs = 0;
+    static int contextSwitchCount = 0;
+    static int completedProcessCount = 0;
+    static long totalServiceTime = 0;
+    static final java.util.concurrent.atomic.AtomicInteger busyWaitPolls = new java.util.concurrent.atomic.AtomicInteger(0);
 
-    public static void incrementCompletedProcess() {
-        // TODO Feature 2: protect this critical section
-        int tmp = completedProcessCount;
-        RaceWindow.pause();
-        completedProcessCount = tmp + 1;
+    private static final ReentrantLock statsLock = new ReentrantLock();
+
+    public static void incrementContextSwitch() {
+        statsLock.lock();
+        try {
+            int tmp = contextSwitchCount;
+            RaceWindow.pause();
+            contextSwitchCount = tmp + 1;
+        } finally {
+            statsLock.unlock();
+        }
     }
 
     public static void addServiceTime(int ms) {
@@ -307,8 +314,10 @@ class CpuWorker extends Thread {
 
             if (!process.isFinished()) {
                 readyQueue.add(process);         // not finished: back to the ready queue
+            } else if (SharedStats.getCompletedProcessCount() >= SharedStats.totalProcesses) {
+                // Feature 3: Last process finished; wake up all blocked CPU threads so they terminate cleanly
+                readyQueue.signalShutdown(SharedStats.totalCPUs);
             }
-
             // TODO Feature 3: when the LAST process has completed, wake up the CPUs that are blocked on the
             // semaphore so that they can terminate (otherwise they would wait forever!)
         }
