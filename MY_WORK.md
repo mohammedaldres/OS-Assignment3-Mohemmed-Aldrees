@@ -182,16 +182,18 @@
 ---
 
 ### Entry 4 - [Date and Time]
-**What I did**:
+**What I did**: Implemented Feature 3 by replacing busy waiting with a counting `Semaphore`
 
 **Details**:
+- Added `private final Semaphore availableProcesses = new Semaphore(0);` in `ReadyQueue` along with `waitForProcess()` and `signalShutdown(int numCPUs)`
+- Updated `ReadyQueue.add()` to call `availableProcesses.release()` outside `queueLock` whenever a process is added or re-enqueued
+- Updated `CpuWorker.run()` to block on `readyQueue.waitForProcess()` instead of sleeping in a polling loop, and called `readyQueue.signalShutdown(SharedStats.totalCPUs)` when the last process finishes
 
-**Challenges**:
+**Challenges**: Preventing `CPU-2` from staying blocked forever on `acquire()` after `CPU-1` completed the 11th and final process
 
-**Solution**:
+**Solution**: Released `totalCPUs` permits once `completedProcessCount >= totalProcesses` and added a completion check right after `waitForProcess()` so waiting CPUs exit cleanly
 
-**Time spent**:
-
+**Time spent**: 1 hour 10 minutes
 ---
 
 ### Entry 5 - [Date and Time]
