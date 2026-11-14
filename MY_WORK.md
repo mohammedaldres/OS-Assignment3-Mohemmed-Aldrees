@@ -166,15 +166,18 @@
 ---
 
 ### Entry 3 - [Date and Time]
-**What I did**:
+**What I did**: Implemented Feature 2 by adding a `ReentrantLock` to `SharedStats`
 
 **Details**:
+- Declared `private static final ReentrantLock statsLock = new ReentrantLock();` in `SharedStats`
+- Protected all three update methods (`incrementContextSwitch`, `incrementCompletedProcess`, and `addServiceTime`) as well as the three reader methods (`getCompletedProcessCount`, `getContextSwitchCount`, `getTotalServiceTime`)
+- Ran the simulation and confirmed that context switches (`26`), completed processes (`11`), and total service time (`76200` ms) matched the expected values
 
-**Challenges**:
+**Challenges**: Deciding whether to use one coarse-grained lock for all three statistics or three separate fine-grained locks, and remembering to lock the getter methods too
 
-**Solution**:
+**Solution**: Used a single `statsLock` because each critical section is only a few nanoseconds long (plus the simulated `RaceWindow.pause()`), avoiding unnecessary complexity while keeping read-modify-write atomic
 
-**Time spent**:
+**Time spent**: 40 minutes
 
 ---
 
