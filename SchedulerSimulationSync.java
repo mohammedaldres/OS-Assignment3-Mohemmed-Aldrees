@@ -284,18 +284,18 @@ class CpuWorker extends Thread {
     @Override
     public void run() {
         while (SharedStats.getCompletedProcessCount() < SharedStats.totalProcesses) {
+            try {
+                readyQueue.waitForProcess();
+            } catch (InterruptedException e) {
+                return;
+            }
 
-            // TODO Feature 3: replace this polling loop by a blocking wait on the counting semaphore
+            if (SharedStats.getCompletedProcessCount() >= SharedStats.totalProcesses) {
+                break;
+            }
+
             Thread thread = readyQueue.poll();
             if (thread == null) {
-                // ⚠️ BUSY WAITING: the CPU keeps checking an empty queue instead of sleeping until
-                // a process is available. It wastes CPU time and needs the "completed == total" test above to stop.
-                SharedStats.busyWaitPolls.incrementAndGet();      // (counted for the verification block)
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    return;
-                }
                 continue;
             }
 
@@ -305,21 +305,20 @@ class CpuWorker extends Thread {
                     readyQueue.snapshot() + Colors.MAGENTA + "]" + Colors.RESET);
 
             process.setCpuId(cpuId);
-            thread.start();                      // run one quantum
+            thread.start();
             try {
-                thread.join();                   // wait for the end of the quantum
+                thread.join();
             } catch (InterruptedException e) {
                 System.out.println("CPU-" + cpuId + " interrupted.");
             }
 
             if (!process.isFinished()) {
-                readyQueue.add(process);         // not finished: back to the ready queue
-            } else if (SharedStats.getCompletedProcessCount() >= SharedStats.totalProcesses) {
-                // Feature 3: Last process finished; wake up all blocked CPU threads so they terminate cleanly
-                readyQueue.signalShutdown(SharedStats.totalCPUs);
+                readyQueue.add(process);
+            } else {
+                if (SharedStats.getCompletedProcessCount() >= SharedStats.totalProcesses) {
+                    readyQueue.signalShutdown(SharedStats.totalCPUs);
+                }
             }
-            // TODO Feature 3: when the LAST process has completed, wake up the CPUs that are blocked on the
-            // semaphore so that they can terminate (otherwise they would wait forever!)
         }
     }
 }
