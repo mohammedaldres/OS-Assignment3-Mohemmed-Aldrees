@@ -150,15 +150,18 @@
 ---
 
 ### Entry 2 - [Date and Time]
-**What I did**:
+**What I did**: Implemented Feature 1 by protecting `ReadyQueue` with a `ReentrantLock`
 
 **Details**:
+- Declared `private final ReentrantLock queueLock = new ReentrantLock();` inside `ReadyQueue`
+- Wrapped `add()`, `poll()`, `processOf()`, and `snapshot()` in `queueLock.lock()` with `try { ... } finally { queueLock.unlock(); }`
+- Tested the code and verified that no two CPUs ever pick the same process simultaneously and no `IllegalThreadStateException` occurs
 
-**Challenges**:
+**Challenges**: Making sure `snapshot()` and `processOf()` were also locked so that no CPU reads `list` or `map` while another thread is modifying them
 
-**Solution**:
+**Solution**: Protected every method that accesses `list` or `map` using the same `queueLock` and always unlocked inside a `finally` block
 
-**Time spent**:
+**Time spent**: 45 minutes
 
 ---
 
